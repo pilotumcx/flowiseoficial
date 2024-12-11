@@ -14,7 +14,8 @@ import {
     MessageContentImageUrl,
     INodeOutputsValue,
     ISeqAgentNode,
-    IDatabaseEntity
+    IDatabaseEntity,
+    ConversationHistorySelection
 } from '../../../src/Interface'
 import { AgentExecutor } from '../../../src/agents'
 import { getInputVariables, getVars, handleEscapeCharacters, prepareSandboxVars } from '../../../src/utils'
@@ -25,6 +26,7 @@ import {
     getVM,
     processImageMessage,
     transformObjectPropertyToFunction,
+    filterConversationHistory,
     restructureMessages,
     checkMessageHistory
 } from '../commonUtils'
@@ -186,6 +188,42 @@ class LLMNode_SeqAgents implements INode {
                 name: 'llmNodeName',
                 type: 'string',
                 placeholder: 'LLM'
+            },
+            {
+                label: 'Conversation History Selection',
+                name: 'conversationHistorySelection',
+                type: 'options',
+                options: [
+                    {
+                        label: 'User Question',
+                        name: 'user_question',
+                        description: 'Use the user question from the historical conversation messages as input.'
+                    },
+                    {
+                        label: 'Last Conversation Message',
+                        name: 'last_message',
+                        description: 'Use the last conversation message from the historical conversation messages as input.'
+                    },
+                    {
+                        label: 'All Conversation Messages',
+                        name: 'all_messages',
+                        description: 'Use all conversation messages from the historical conversation messages as input.'
+                    },
+                    {
+                        label: 'Empty',
+                        name: 'empty',
+                        description:
+                            'Do not use any messages from the conversation history. ' +
+                            'Ensure to use either System Prompt, Human Prompt, or Messages History.'
+                    }
+                ],
+                default: 'all_messages',
+                optional: true,
+                description:
+                    'Select which messages from the conversation history to include in the prompt. ' +
+                    'The selected messages will be inserted between the System Prompt (if defined) and ' +
+                    '[Messages History, Human Prompt].',
+                additionalParams: true
             },
             {
                 label: 'System Prompt',
@@ -534,6 +572,9 @@ async function agentNode(
             throw new Error('Aborted!')
         }
 
+        const historySelection = (nodeData.inputs?.conversationHistorySelection || 'all_messages') as ConversationHistorySelection
+        // @ts-ignore
+        state.messages = filterConversationHistory(historySelection, input, state)
         // @ts-ignore
         state.messages = restructureMessages(llm, state)
 
